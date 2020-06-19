@@ -27,7 +27,6 @@ class MyBot(sc2.BotAI):
         self.data = TerranData()
         self.resource_priority = ResourcePriority.STRUCTURES
         self.cheese_defense_scv: Optional[Unit] = None
-        self.block_ramp: Optional[Ramp] = None
 
         self.time_budget_available: float = 1
         self.last_scan_time: float = 0
@@ -223,12 +222,12 @@ class MyBot(sc2.BotAI):
 
     @property_cache_forever
     def common_expansion_entrance(self) -> Point2:
-        min_dist_exp = min(self.expansion_locations_list, key=lambda x: x.distance_to(self.block_ramp.bottom_center))
+        min_dist_exp = min(self.expansion_locations_list, key=lambda x: x.distance_to(self.main_base_ramp.bottom_center))
         return min_dist_exp.towards(self.game_info.map_center, 3)
 
     @property_cache_forever
     def early_unit_rally_point(self) -> Point2:
-        return self.block_ramp.top_center.towards(self.start_location, 5).to2
+        return self.main_base_ramp.top_center.towards(self.start_location, 5).to2
 
     @property_cache_once_per_frame
     def current_army_resting_point(self) -> Point2:
@@ -398,10 +397,10 @@ class MyBot(sc2.BotAI):
             w = ws.closest_to(self.start_location)
 
             if self.supply_cap < 17:  # if first depot
-                loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, list(self.block_ramp.corner_depots)[0],
+                loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, list(self.main_base_ramp.corner_depots)[0],
                                                 placement_step=2, random_alternative=False)
             elif self.supply_cap < 25:  # if second depot
-                loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, list(self.block_ramp.corner_depots)[1],
+                loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, list(self.main_base_ramp.corner_depots)[1],
                                                 placement_step=2, random_alternative=False)
             else:
                 loc = await self.find_placement(UnitTypeId.SUPPLYDEPOT, w.position, placement_step=2,
@@ -426,7 +425,7 @@ class MyBot(sc2.BotAI):
             building.build(addon)
         else:
             # if this is the ramp blocking barracks, don't build addon here
-            if building.position._distance_squared(self.block_ramp.barracks_in_middle) > 1 or self.time > 300:
+            if building.position._distance_squared(self.main_base_ramp.barracks_in_middle) > 1 or self.time > 300:
                 loc = await self.find_production_placement(building.position)
                 if loc:
                     building.build(addon, loc)
@@ -438,9 +437,9 @@ class MyBot(sc2.BotAI):
         if depots.empty:
             return
 
-        enemy_ground_units = self.get_army_supply(self.enemy_units.filter(lambda x: not x.is_flying).closer_than(10, self.block_ramp.top_center))
+        enemy_ground_units = self.get_army_supply(self.enemy_units.filter(lambda x: not x.is_flying).closer_than(10, self.main_base_ramp.top_center))
         army_units = self.units - self.workers
-        my_ground_units = self.get_army_supply(army_units.closer_than(10, self.block_ramp.top_center))
+        my_ground_units = self.get_army_supply(army_units.closer_than(10, self.main_base_ramp.top_center))
 
         if enemy_ground_units == 0 or my_ground_units - 2 > enemy_ground_units:
             for depot in depots.filter(lambda x: x.type_id == UnitTypeId.SUPPLYDEPOT):
@@ -597,7 +596,7 @@ class MyBot(sc2.BotAI):
                         for w in ws.take(ref.surplus_harvesters):
                             w.gather(target_mf)
 
-    async def assign_idle_workers(self):
+    def assign_idle_workers(self):
         idle_workers = self.workers.idle | self.units(UnitTypeId.MULE).idle - self.scouting_units.select_units(self.workers).idle
         ths_with_resources = self.townhalls - self.townhalls.filter(self.base_is_depleted)
         attacking_workers = self.workers.filter(lambda x: x.is_attacking)
@@ -944,7 +943,9 @@ class MyBot(sc2.BotAI):
                                      | close_enemy_units(UnitTypeId.BROODLORD)
                                      | close_enemy_units(UnitTypeId.HYDRALISK)
                                      | close_enemy_units(UnitTypeId.BANELING)
-                                     | close_enemy_units(UnitTypeId.BATTLECRUISER))
+                                     | close_enemy_units(UnitTypeId.BATTLECRUISER)
+                                     | close_enemy_units(UnitTypeId.IMMORTAL)
+                                     | close_enemy_units(UnitTypeId.STALKER)).filter(lambda x: not x.has_buff(BuffId.RAVENSHREDDERMISSILEARMORREDUCTION))
 
         for raven in units(UnitTypeId.RAVEN):
             if interferable_units and interferable_units.exists and raven.energy >= 75:
@@ -1637,7 +1638,7 @@ class MyBot(sc2.BotAI):
                 # build the first rax at the main base ramp
                 w = ws.furthest_to(ws.center)
                 if self.structures(UnitTypeId.BARRACKS).empty and self.already_pending(UnitTypeId.BARRACKS) <= 0:
-                    loc = await self.find_placement(UnitTypeId.BARRACKS, self.block_ramp.barracks_in_middle, placement_step=3)
+                    loc = await self.find_placement(UnitTypeId.BARRACKS, self.main_base_ramp.barracks_in_middle, placement_step=3)
                     if loc:
                         w.build(UnitTypeId.BARRACKS, loc)
                 else:
@@ -1762,21 +1763,16 @@ class MyBot(sc2.BotAI):
         return supply
 
     async def calculate_map_info(self):
-        # check if the ramp suggested is too big, which means
-        # that there is 2 ramps in the base and the enemy
-        # can run up only through the smaller one
+        # check if there is a another ramp on the start location level close by
 
-        if len(self.main_base_ramp.upper2_for_ramp_wall) < 2:
-            self.map_has_inner_expansion = True
-            self.block_ramp = self.main_base_ramp
-            min_dist = math.inf
-            for ramp in self.game_info.map_ramps:
-                cur_dist = self.start_location._distance_squared(ramp.top_center)
-                if len(ramp.upper2_for_ramp_wall) == 2 and cur_dist < min_dist:
-                    min_dist = cur_dist
-                    self.block_ramp = ramp
-        else:
-            self.block_ramp = self.main_base_ramp
+        base_height = self.get_terrain_height(self.start_location)
+        for ramp in self.game_info.map_ramps:
+            if ramp == self.main_base_ramp:
+                continue
+            upper_height = self.get_terrain_height(ramp.top_center)
+            if base_height == upper_height and self.start_location.distance_to(ramp.top_center) < 25:
+                print(self.start_location.distance_to(ramp.top_center))
+                self.map_has_inner_expansion = True
 
         self.enemy_expansion_order = await self.calculate_expansion_order(self.enemy_start_locations[0], True)
         for exp in self.enemy_expansion_order:
@@ -1844,7 +1840,7 @@ class MyBot(sc2.BotAI):
         if self.iterations_used % 5 == 0:
             self.assign_gas_workers()
         elif self.iterations_used % 5 == 1:
-            await self.assign_idle_workers()
+            self.assign_idle_workers()
         elif self.iterations_used % 5 == 2:
             self.assign_mineral_workers()
 

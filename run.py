@@ -1,3 +1,5 @@
+# Copied originally from https://github.com/eschampstudio/python-sc2-bot-template
+
 import sys
 import json
 

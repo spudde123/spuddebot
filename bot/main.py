@@ -1085,9 +1085,11 @@ class MyBot(sc2.BotAI):
                 self.main_army.add_units(units_to_be_moved)
                 self.new_units.remove_units(units_to_be_moved)
             else:
+                # all army units died but retreat condition wasn't satisfied
                 if new_units.exists:
                     await self.attack_towards_position(new_units, self.current_army_resting_point)
                 self.main_army.mode = ArmyMode.PASSIVE
+                self.tech.delay_attack_timing(self.army_type)
 
         alive_patrollers = self.scouting_units.select_units(self.workers)
         if self.time > 240 and self.time % 120 < 1 and self.time - self.prev_game_seconds > 1:
@@ -1865,7 +1867,7 @@ class MyBot(sc2.BotAI):
                 self.main_army.mode = ArmyMode.RETREAT
                 self.army_retreat_start_time = self.time
                 # if we are forced to retreat, wait longer to attack again
-                self.tech.builds[self.army_type]['attack_timing'] = 180
+                self.tech.delay_attack_timing(self.army_type)
             del self.dead_unit_counter[0]
             self.dead_unit_counter.append(0)
 

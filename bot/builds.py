@@ -269,3 +269,6 @@ class Tech:
     def update_time(self, time: float):
         self._time = time
 
+    def delay_attack_timing(self, army_type: ArmyPriority):
+        self.builds[army_type]['attack_timing'] = 180
+

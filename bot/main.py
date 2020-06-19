@@ -14,6 +14,8 @@ from .builds import ArmyPriority, ResourcePriority, Tech
 from .unit_control import ArmyMode, ArmyGroup
 from .data import TerranData
 
+RETREAT_TIME_THRESHOLD = 60
+
 
 class MyBot(sc2.BotAI):
     def __init__(self):
@@ -44,6 +46,7 @@ class MyBot(sc2.BotAI):
         self.building_status = dict()
 
         self.main_army = ArmyGroup()
+        self.army_retreat_start_time = 0
 
         # reaper group, hellion group, banshee group
         self.strike_teams: List[ArmyGroup] = [ArmyGroup(), ArmyGroup(), ArmyGroup()]
@@ -944,8 +947,7 @@ class MyBot(sc2.BotAI):
                                      | close_enemy_units(UnitTypeId.HYDRALISK)
                                      | close_enemy_units(UnitTypeId.BANELING)
                                      | close_enemy_units(UnitTypeId.BATTLECRUISER)
-                                     | close_enemy_units(UnitTypeId.IMMORTAL)
-                                     | close_enemy_units(UnitTypeId.STALKER)).filter(lambda x: not x.has_buff(BuffId.RAVENSHREDDERMISSILEARMORREDUCTION))
+                                     | close_enemy_units(UnitTypeId.IMMORTAL)).filter(lambda x: not x.has_buff(BuffId.RAVENSHREDDERMISSILEARMORREDUCTION))
 
         for raven in units(UnitTypeId.RAVEN):
             if interferable_units and interferable_units.exists and raven.energy >= 75:
@@ -1231,7 +1233,7 @@ class MyBot(sc2.BotAI):
                 else:
                     resting_point = self.current_army_resting_point
                     for unit in army_units:
-                        if unit.position.distance_to(resting_point) > 5:
+                        if unit.position.distance_to(resting_point) > 8:
                             if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
                                 unit(AbilityId.UNSIEGE_UNSIEGE)
                                 unit.attack(resting_point, queue=True)
@@ -1239,7 +1241,7 @@ class MyBot(sc2.BotAI):
                                 unit.attack(resting_point)
                         else:
                             if unit.type_id == UnitTypeId.SIEGETANK:
-                                unit(AbilityId.SIEGEMODE_SIEGEMODE)
+                                unit(AbilityId.SIEGEMODE_SIEGEMODE, queue=True)
             else:
                 ramp_distance = self.main_base_ramp.top_center.distance_to(self.start_location)
                 units_close = self.all_enemy_units.filter(lambda x: not x.is_flying).closer_than(ramp_distance, self.start_location)
@@ -1306,19 +1308,23 @@ class MyBot(sc2.BotAI):
                 if new_units.exists:
                     await self.attack_towards_position(new_units, army_units.center)
         elif self.main_army.mode == ArmyMode.RETREAT:
-            # need to make up a proper condition for when this state should be changed
-            close_unit_count = 0
-            for unit in army_units:
-                if unit.position.distance_to(resting_point) > 20:
-                    if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-                        unit(AbilityId.UNSIEGE_UNSIEGE)
-                        unit.move(resting_point, queue=True)
-                    else:
-                        unit.move(resting_point)
-                else:
-                    close_unit_count += 1
-            if close_unit_count > 0.8*army_units.amount:
+            # temporary fix to make sure the army doesn't get stuck in retreat mode for ages
+            if self.time - self.army_retreat_start_time > RETREAT_TIME_THRESHOLD:
                 self.main_army.mode = ArmyMode.PASSIVE
+            else:
+                close_unit_count = 0
+                for unit in army_units:
+                    if unit.position.distance_to(resting_point) > 20:
+                        if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+                            unit(AbilityId.UNSIEGE_UNSIEGE)
+                            unit.move(resting_point, queue=True)
+                        else:
+                            unit.move(resting_point)
+                    else:
+                        close_unit_count += 1
+                if close_unit_count > 0.8 * army_units.amount:
+                    self.main_army.mode = ArmyMode.PASSIVE
+
         elif self.main_army.mode == ArmyMode.SCOUT:
             scouters = self.scouting_units.select_units(self.units - self.workers)
             if self.enemy_structures.exists or scouters.not_flying.empty:
@@ -1857,6 +1863,9 @@ class MyBot(sc2.BotAI):
                 self.main_army.mode = ArmyMode.ATTACK
             elif amount < -20:
                 self.main_army.mode = ArmyMode.RETREAT
+                self.army_retreat_start_time = self.time
+                # if we are forced to retreat, wait longer to attack again
+                self.tech.builds[self.army_type]['attack_timing'] = 180
             del self.dead_unit_counter[0]
             self.dead_unit_counter.append(0)
 

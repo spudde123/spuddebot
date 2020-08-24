@@ -5,3 +5,5 @@ __pycache__/
 replays/
 publish/
 TODO.txt
+changelog.txt
+data/

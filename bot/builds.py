@@ -1,7 +1,7 @@
 from enum import Enum
+import sc2
 from sc2.constants import *
 import math
-
 
 class ResourcePriority(Enum):
     STRUCTURES = 0,
@@ -11,15 +11,14 @@ class ResourcePriority(Enum):
 
 class ArmyPriority(Enum):
     BIO = 0,
-    MECH = 1,
-    BIOVSZERG = 2
-
+    MECH = 1
 
 class Tech:
-    def __init__(self):
+    def __init__(self, bot: sc2.BotAI):
         self._unit_counts = dict()
         self._unit_types = dict()
         self._time = 0
+        self.bot = bot
 
         self.builds = {
             ArmyPriority.MECH: {
@@ -105,6 +104,9 @@ class Tech:
                 'prerequisites': {
                     UnitTypeId.ENGINEERINGBAY: UnitTypeId.STARPORT
                 },
+                'pre_addon_units': {
+                    UnitTypeId.STARPORT: (UnitTypeId.MEDIVAC, 1)
+                },
                 'building_limits': [
                     {
                         UnitTypeId.BARRACKS: 2,
@@ -148,10 +150,10 @@ class Tech:
                     }
                 ],
                 'priority_units': {
-                    UnitTypeId.REAPER: 2,
+                    UnitTypeId.REAPER: 1,
                     UnitTypeId.MARINE: 200,
                     UnitTypeId.SIEGETANK: 2,
-                    UnitTypeId.MEDIVAC: 2
+                    UnitTypeId.MEDIVAC: 1
                 },
                 'add_ons': {
                     UnitTypeId.BARRACKS: True,
@@ -162,9 +164,9 @@ class Tech:
                     UnitTypeId.SIEGETANK: 6,
                     UnitTypeId.MARINE: 200,
                     UnitTypeId.MARAUDER: 200,
-                    UnitTypeId.MEDIVAC: 5,
+                    UnitTypeId.MEDIVAC: 4,
                     UnitTypeId.RAVEN: 2,
-                    UnitTypeId.VIKINGFIGHTER: 4
+                    UnitTypeId.VIKINGFIGHTER: 8
                 },
                 'upgrades': {
                     UnitTypeId.ENGINEERINGBAY: True,
@@ -175,7 +177,7 @@ class Tech:
                 },
                 'poke_timing': {
                     UpgradeId.SHIELDWALL: 1,
-                    UpgradeId.STIMPACK: 0.8,
+                    UpgradeId.STIMPACK: 0.7,
                     UnitTypeId.MEDIVAC: 1,
                     UnitTypeId.MARINE: 10
                 },
@@ -216,22 +218,30 @@ class Tech:
 
         return current_amount < self._get_building_limit(army_type, building_type, base_count)
 
+    def should_build_addon(self, army_type: ArmyPriority, building_type: UnitTypeId):
+        if ('pre_addon_units' in self.builds[army_type]
+                and building_type in self.builds[army_type]['pre_addon_units']
+                and (self.builds[army_type]['pre_addon_units'][building_type][0] not in self._unit_counts
+                     or self._unit_counts[self.builds[army_type]['pre_addon_units'][building_type][0]] < self.builds[army_type]['pre_addon_units'][building_type][1])):
+            return False
+
+        return True
+
     def should_build_techlab(self, army_type: ArmyPriority, building_type: UnitTypeId, building_count: int,
                              techlab_count: int) -> bool:
-
         return techlab_count < self._get_techlab_limit(army_type, building_type, building_count)
 
     def should_train_unit(self, army_type: ArmyPriority, unit_type: UnitTypeId) -> bool:
 
         if self._time < 400:
             if unit_type in self.builds[army_type]['priority_units']:
-                return unit_type not in self._unit_counts or self._unit_counts[unit_type] < self.builds[army_type]['priority_units'][unit_type]
+                return unit_type not in self._unit_counts or self._unit_counts[unit_type] + self.bot.already_pending(unit_type) < self.builds[army_type]['priority_units'][unit_type]
             else:
                 return False
         else:
             return (unit_type in self.builds[army_type]['units']
                     and (unit_type not in self._unit_counts
-                         or self._unit_counts[unit_type] < self.builds[army_type]['units'][unit_type]))
+                         or self._unit_counts[unit_type] + self.bot.already_pending(unit_type) < self.builds[army_type]['units'][unit_type]))
 
     def should_build_refinery(self, army_type: ArmyPriority, base_count: int, current_amount: int) -> bool:
         if base_count == 0:

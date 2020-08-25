@@ -740,8 +740,12 @@ class MyBot(sc2.BotAI):
             return
 
         cloaked_enemies = self.enemy_units.filter(lambda x: not x.can_be_attacked)
-        if cloaked_enemies.exists and units.in_attack_range_of(cloaked_enemies.first, 1).exists:
+        if cloaked_enemies.exists and units.filter(lambda x: x.target_in_range(cloaked_enemies.first, 1)).exists:
             self.use_scan(cloaked_enemies.first.position)
+
+        # don't stim etc because of a random observer flying around
+        if close_enemy_units:
+            close_enemy_units = close_enemy_units - cloaked_enemies
 
         # these should be used to determine whether to fight or not
         supply = 0
@@ -758,16 +762,44 @@ class MyBot(sc2.BotAI):
             enemy_units_to_dodge = (close_enemy_units(UnitTypeId.BANELING) | close_enemy_units(UnitTypeId.ZEALOT))
             enemy_units_to_dodge = enemy_units_to_dodge.random_group_of(min(enemy_units_to_dodge.amount, 20))
 
+        effects_to_dodge = {}
+        for effect in self.state.effects:
+            if effect.id == EffectId.PSISTORMPERSISTENT:
+                for pos in effect.positions:
+                    effects_to_dodge[pos] = effect.radius
+
         for unit in (units(UnitTypeId.MARINE) | units(UnitTypeId.MARAUDER)):
 
             if unit.weapon_cooldown > 0 and not unit.is_moving and enemy_units_to_dodge and enemy_units_to_dodge.exists:
                 closest_enemy = enemy_units_to_dodge.closest_to(unit)
                 if closest_enemy.distance_to(unit) < unit.ground_range + 2:
                     unit.move(unit.position.towards(closest_enemy, -5))
+            elif len(effects_to_dodge) > 0 and (unit.weapon_cooldown > 0
+                                                or (not close_enemy_units or close_enemy_units.empty or
+                                                    close_enemy_units.in_attack_range_of(unit).empty)):
+                min_distance = math.inf
+                min_position = None
+                min_radius = math.inf
+
+                for effect_position, effect_radius in effects_to_dodge.items():
+                    dist = unit.distance_to(effect_position)
+                    if dist < effect_radius and dist < min_distance:
+                        min_position = effect_position
+                        min_radius = effect_radius
+                        min_distance = dist
+
+                if min_position:
+                    unit.move(unit.position.towards(min_position, -5))
+                    if unit.type_id == UnitTypeId.MARINE and unit.health_percentage > 0.5 and not unit.has_buff(
+                            BuffId.STIMPACK):
+                        unit(AbilityId.EFFECT_STIM_MARINE, queue=True)
+                    elif unit.type_id == UnitTypeId.MARAUDER and unit.health_percentage > 0.5 and not unit.has_buff(
+                            BuffId.STIMPACKMARAUDER):
+                        unit(AbilityId.EFFECT_STIM_MARAUDER, queue=True)
             else:
                 if position_to_hold and unit.distance_to(target) <= position_to_hold.distance_to(target) - 2:
                     unit(AbilityId.MOVE, position_to_hold.towards(target, -2))
-                #quick hack so we don't run straight into a harassing liberators range
+                # if there are only air units around, try to run under them.
                 elif (close_enemy_units and close_enemy_units.not_flying.empty and close_enemy_units.flying.exists
                         and unit.weapon_cooldown > 0):
                     unit.move(target)

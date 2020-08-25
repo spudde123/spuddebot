@@ -3,6 +3,7 @@
 import sys
 import json
 sys.path.insert(1, "python-sc2")
+sys.path.insert(1, "SC2MapAnalysis")
 
 import os
 import shutil
@@ -27,6 +28,7 @@ copy_zip_to_folder = "publish"
 files_and_directories_to_zip = [
     "ladderbots.json",  # generated when this script is run
     "python-sc2/sc2",
+    "SC2MapAnalysis/MapAnalyzer",
     "bot",
     "requirements.txt",
     "run.py",

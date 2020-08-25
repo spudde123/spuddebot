@@ -440,7 +440,6 @@ class MyBot(sc2.BotAI):
 
         addon_offset = Point2((2.5, -0.5))
         can_build_to_current_location = await self.can_place(UnitTypeId.SUPPLYDEPOT, building.position.offset(addon_offset))
-        # only allow techlab creation once initial units are done
         if can_build_to_current_location:
             building.build(addon)
         else:

@@ -1,3 +1,6 @@
 [submodule "python-sc2"]
 	path = python-sc2
 	url = https://github.com/BurnySc2/python-sc2.git
+[submodule "SC2MapAnalysis"]
+	path = SC2MapAnalysis
+	url = https://github.com/eladyaniv01/SC2MapAnalysis

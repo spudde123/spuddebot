@@ -4,6 +4,7 @@ import sys
 import json
 
 sys.path.insert(1, "python-sc2")
+sys.path.insert(1, "SC2MapAnalysis")
 
 from bot import MyBot
 

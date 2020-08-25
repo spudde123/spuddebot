@@ -2,6 +2,7 @@ import json
 import sys
 
 sys.path.insert(1, "python-sc2")
+sys.path.insert(1, "SC2MapAnalysis")
 
 from sc2 import run_game, maps, Race, Difficulty, AIBuild
 from sc2.player import Bot, Computer, Human

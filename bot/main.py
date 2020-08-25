@@ -13,6 +13,7 @@ from typing import List, Optional, Union
 from .builds import ArmyPriority, ResourcePriority, Tech
 from .unit_control import ArmyMode, ArmyGroup
 from .data import TerranData
+from MapAnalyzer import MapData
 
 RETREAT_TIME_THRESHOLD = 60
 
@@ -1794,13 +1795,16 @@ class MyBot(sc2.BotAI):
                     sp.train(UnitTypeId.VIKINGFIGHTER)
 
     def _prepare_first_step(self):
+        super()._prepare_first_step()
+
         self.army_type = ArmyPriority.BIO
         self.turret_time = 540
         if self.enemy_race == Race.Protoss:
             self.should_be_aggressive = False
         else:
             self.should_be_aggressive = True
-        super()._prepare_first_step()
+
+        self.map_data = MapData(self)
 
     def _prepare_step(self, state, proto_game_info):
         super()._prepare_step(state, proto_game_info)

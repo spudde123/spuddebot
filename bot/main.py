@@ -797,7 +797,7 @@ class MyBot(sc2.BotAI):
                             BuffId.STIMPACKMARAUDER):
                         unit(AbilityId.EFFECT_STIM_MARAUDER, queue=True)
             else:
-                if position_to_hold and unit.distance_to(target) <= position_to_hold.distance_to(target) - 2:
+                if position_to_hold and unit.distance_to(target) <= position_to_hold.distance_to(target):
                     unit(AbilityId.MOVE, position_to_hold.towards(target, -2))
                 # if there are only air units around, try to run under them.
                 elif (close_enemy_units and close_enemy_units.not_flying.empty and close_enemy_units.flying.exists
@@ -1864,7 +1864,10 @@ class MyBot(sc2.BotAI):
                 continue
             upper_height = self.get_terrain_height(ramp.top_center)
             if base_height == upper_height and self.start_location.distance_to(ramp.top_center) < 25:
-                pathing_possible = await self.client.query_pathing(self.start_location, ramp.bottom_center)
+                ramp_dir = ramp.bottom_center - ramp.top_center
+                test_offset = 2*ramp_dir
+                pathing_possible = await self.client.query_pathing(self.start_location,
+                                                                   ramp.bottom_center.offset(test_offset))
                 # to deal with ramps blocked by rocks or minerals
                 if pathing_possible is not None and pathing_possible < 50:
                     self.map_has_inner_expansion = True

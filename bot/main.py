@@ -661,9 +661,14 @@ class MyBot(sc2.BotAI):
             enemy_can_attack_air = self.all_enemy_units.filter(lambda x: x.can_attack_air).closer_than(15, th.position).exists
             if (th.tag in self.building_status and not enemy_can_attack_air
                     and self.building_status[th.tag]['health_percentage'] > th.health_percentage
-                    and th.health_percentage < 0.5):
-                th(AbilityId.CANCEL)
-                th(AbilityId.LIFT, queue=True)
+                    and th.health_percentage < 0.6):
+                if len(th.orders) > 0:
+                    th(AbilityId.CANCEL)
+                else:
+                    if th.type_id == UnitTypeId.COMMANDCENTER:
+                        th(AbilityId.LIFT_COMMANDCENTER)
+                    else:
+                        th(AbilityId.LIFT_ORBITALCOMMAND)
 
             self.building_status[th.tag] = {
                 'build_progress': th.build_progress,
@@ -674,7 +679,10 @@ class MyBot(sc2.BotAI):
         for th in self.structures.ready.filter(lambda x: x.type_id in landable_ths):
             enemy_can_attack_ground = self.all_enemy_units.filter(lambda x: x.can_attack_ground).closer_than(15, th.position).exists
             if not enemy_can_attack_ground:
-                th(AbilityId.LAND, th.position)
+                if th.type_id == UnitTypeId.COMMANDCENTERFLYING:
+                    th(AbilityId.LAND_COMMANDCENTER, th.position, queue=True)
+                else:
+                    th(AbilityId.LAND_ORBITALCOMMAND, th.position, queue=True)
 
             self.building_status[th.tag] = {
                 'build_progress': th.build_progress,
@@ -1219,33 +1227,39 @@ class MyBot(sc2.BotAI):
             if army_units.exists:
                 if self.structures(UnitTypeId.BUNKER).ready.exists:
                     bunker = self.structures(UnitTypeId.BUNKER).ready.first
+                    bunkered_units = bunker.passengers
+                    bunkered_marines = len(bunkered_units) > 0
 
-                    bunkered_units = self.structures(UnitTypeId.BUNKER).ready.first.passengers
-                    bunkered_marine = None
-                    if len(bunkered_units) > 0:
-                        bunkered_marine = bunkered_units.pop()
-
-                    enemy_harass_units = self.enemy_units.exclude_type([UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
-                    out_of_bunker_range = False
-                    behind_bunker = False
+                    enemy_harass_units = self.enemy_units.exclude_type([UnitTypeId.PROBE,
+                                                                        UnitTypeId.SCV,
+                                                                        UnitTypeId.DRONE,
+                                                                        UnitTypeId.OVERLORD,
+                                                                        UnitTypeId.OBSERVER])
+                    enemy_behind_bunker = False
 
                     if enemy_harass_units.exists:
-                        out_of_bunker_range = enemy_harass_units.closest_distance_to(bunker) > 6
-                        bunker_to_mid = self.game_info.map_center - bunker.position
-                        bunker_to_enemy = enemy_harass_units.closest_to(bunker).position - bunker.position
+                        closest_enemy = enemy_harass_units.closest_to(bunker)
+                        out_of_bunker_range = closest_enemy.distance_to(bunker) > 6
 
-                        if bunker_to_mid.x * bunker_to_enemy.x + bunker_to_mid.y * bunker_to_enemy.y < 0:
-                            behind_bunker = True
+                        if out_of_bunker_range:
+                            bunker_to_mid = self.game_info.map_center - bunker.position
+                            bunker_to_enemy = closest_enemy.position - bunker.position
+
+                            main_base_region = self.map_data.where(self.start_location)
+                            natural_region = self.map_data.where(self.expansion_order[1])
+
+                            if (main_base_region.is_inside_point(closest_enemy.position)
+                                    or (natural_region.is_inside_point(closest_enemy.position)
+                                        and bunker_to_mid.x * bunker_to_enemy.x + bunker_to_mid.y * bunker_to_enemy.y < 0)):
+                                enemy_behind_bunker = True
                     # if enemy units are in main base or have went past the bunker to natural mineral line
-                    if (bunkered_marine
-                            and enemy_harass_units.exists
-                            and out_of_bunker_range
-                            and behind_bunker):
-                        bunkered_tags = self.structures(UnitTypeId.BUNKER).ready.first.passengers_tags
+                    if (bunkered_marines
+                            and enemy_behind_bunker):
+                        bunkered_tags = bunker.passengers_tags
                         for passenger in bunkered_tags:
                             self.main_army.add(passenger)
                         bunker(AbilityId.UNLOADALL_BUNKER)
-                    elif not (out_of_bunker_range and behind_bunker):
+                    elif not enemy_behind_bunker:
                         marines_to_bunker = (army_units(UnitTypeId.MARINE).filter(lambda x: x.distance_to(bunker) < 10)
                                              .take(bunker.cargo_max - bunker.cargo_used))
                         for marine in marines_to_bunker:
@@ -1891,6 +1905,9 @@ class MyBot(sc2.BotAI):
         if iteration == 0:
             await self.calculate_map_info()
 
+        # temp disabled because it doesn't work
+        # self.lift_buildings_under_attack()
+
         await self.control_units()
 
         current_base_count = (self.townhalls.ready.amount + self.already_pending(UnitTypeId.COMMANDCENTER)
@@ -1926,7 +1943,6 @@ class MyBot(sc2.BotAI):
         self.fix_interrupted_construction()
         await self.fix_idle_flying_buildings()
         self.control_building_fixing()
-        self.lift_buildings_under_attack()
 
         if self.iterations_used % 5 == 0:
             self.assign_gas_workers()

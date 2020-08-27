@@ -3,6 +3,7 @@ import sc2
 from sc2.constants import *
 import math
 
+
 class ResourcePriority(Enum):
     STRUCTURES = 0,
     EXPANSION = 1,
@@ -13,6 +14,7 @@ class ArmyPriority(Enum):
     BIO = 0,
     MECH = 1
 
+
 class Tech:
     def __init__(self, bot: sc2.BotAI):
         self._unit_counts = dict()
@@ -22,8 +24,8 @@ class Tech:
 
         self.builds = {
             ArmyPriority.MECH: {
-                'prerequisites': {
-                    UnitTypeId.ENGINEERINGBAY: UnitTypeId.STARPORT
+                'build_after': {
+                    (UnitTypeId.ENGINEERINGBAY, 1): (UnitTypeId.STARPORT, 1)
                 },
                 'building_limits': [
                     {
@@ -101,15 +103,18 @@ class Tech:
 
             },
             ArmyPriority.BIO: {
-                'prerequisites': {
-                    UnitTypeId.ENGINEERINGBAY: UnitTypeId.STARPORT
+                'build_after': {
+                    (UnitTypeId.ENGINEERINGBAY, 1): (UnitTypeId.STARPORT, 1),
+                    (UnitTypeId.BARRACKS, 2): (UnitTypeId.FACTORY, 1),
+                    (UnitTypeId.BARRACKS, 2): (UnitTypeId.STARPORT, 1),
+                    (UnitTypeId.COMMANDCENTER, 2): (UnitTypeId.ORBITALCOMMAND, 1)
                 },
                 'pre_addon_units': {
                     UnitTypeId.STARPORT: (UnitTypeId.MEDIVAC, 1)
                 },
                 'building_limits': [
                     {
-                        UnitTypeId.BARRACKS: 2,
+                        UnitTypeId.BARRACKS: 1,
                         UnitTypeId.FACTORY: 0,
                         UnitTypeId.STARPORT: 0,
                         UnitTypeId.ENGINEERINGBAY: 0,
@@ -210,11 +215,21 @@ class Tech:
                 return 1
         return math.ceil(building_count / 3)
 
+    def should_expand(self, army_type: ArmyPriority, base_count: int):
+        for ordering in self.builds[army_type]['build_after']:
+            if ordering[0] == UnitTypeId.COMMANDCENTER and base_count + 1 == ordering[1]:
+                req_type, req_amount = self.builds[army_type]['build_after'][ordering]
+                if self.bot.all_own_units(req_type).amount < req_amount:
+                    return False
+
+        return True
+
     def should_build(self, army_type: ArmyPriority, building_type: UnitTypeId, current_amount: int, base_count: int) -> bool:
-        if building_type in self.builds[army_type]['prerequisites']:
-            req = self.builds[army_type]['prerequisites'][building_type]
-            if req not in self._unit_counts or self._unit_counts[req] == 0:
-                return False
+        for ordering in self.builds[army_type]['build_after']:
+            if ordering[0] == building_type and current_amount + 1 == ordering[1]:
+                req_type, req_amount = self.builds[army_type]['build_after'][ordering]
+                if req_type not in self._unit_counts or self._unit_counts[req_type] < req_amount:
+                    return False
 
         return current_amount < self._get_building_limit(army_type, building_type, base_count)
 

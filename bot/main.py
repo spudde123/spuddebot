@@ -1915,7 +1915,7 @@ class MyBot(sc2.BotAI):
         # need to take into account what should be done
         # if all bases have already been taken
 
-        if current_base_count < 1:
+        if current_base_count < 1 and self.tech.should_expand(self.army_type, self.townhalls.amount):
             self.resource_priority = ResourcePriority.EXPANSION
         else:
             self.resource_priority = ResourcePriority.STRUCTURES

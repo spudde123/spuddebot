@@ -1046,8 +1046,10 @@ class MyBot(sc2.BotAI):
             self.main_army.add_units(new_units)
             self.new_units.remove_units(new_units)
         else:
-            army_units = self.main_army.select_units(self.units)
-            if army_units.filter(lambda x: x.can_attack_ground).exists:
+            army_units: Units = self.main_army.select_units(self.units)
+            if (army_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).exists
+                    or (army_units.filter(lambda x: x.can_attack_ground).exists
+                        and enemy_units.flying.filter(lambda x: x.can_attack_ground).empty)):
                 center = army_units.center
                 units_to_be_moved = set()
                 for unit in new_units:

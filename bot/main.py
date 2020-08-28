@@ -295,7 +295,7 @@ class MyBot(sc2.BotAI):
 
         near = near.offset((1, 0))
 
-        if await self.can_place(building, near):
+        if await self.can_place_single(building, near):
             return near.offset((-1, 0))
 
         x_step = 7
@@ -440,7 +440,7 @@ class MyBot(sc2.BotAI):
             return
 
         addon_offset = Point2((2.5, -0.5))
-        can_build_to_current_location = await self.can_place(UnitTypeId.SUPPLYDEPOT, building.position.offset(addon_offset))
+        can_build_to_current_location = await self.can_place_single(UnitTypeId.SUPPLYDEPOT, building.position.offset(addon_offset))
         if can_build_to_current_location:
             building.build(addon)
         else:

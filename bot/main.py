@@ -38,6 +38,7 @@ class MyBot(sc2.BotAI):
         self.save_energy_for_scan = False
         self.poke_scan_done = False
         self.should_be_aggressive = True
+        self.natural_contained = False
 
         self.building_status = dict()
 
@@ -440,7 +441,8 @@ class MyBot(sc2.BotAI):
             return
 
         addon_offset = Point2((2.5, -0.5))
-        can_build_to_current_location = await self.can_place_single(UnitTypeId.SUPPLYDEPOT, building.position.offset(addon_offset))
+        depot_ability = self._game_data.units[UnitTypeId.SUPPLYDEPOT.value].creation_ability
+        can_build_to_current_location = await self.can_place_single(depot_ability, building.position.offset(addon_offset))
         if can_build_to_current_location:
             building.build(addon)
         else:
@@ -456,11 +458,37 @@ class MyBot(sc2.BotAI):
         if depots.empty:
             return
 
-        enemy_ground_units = self.get_army_supply(self.enemy_units.filter(lambda x: not x.is_flying).closer_than(10, self.main_base_ramp.top_center))
+        enemy_ground_units = self.get_army_supply(self.enemy_units.not_flying.closer_than(10, self.main_base_ramp.top_center))
         army_units = self.units - self.workers
         my_ground_units = self.get_army_supply(army_units.closer_than(10, self.main_base_ramp.top_center))
 
-        if enemy_ground_units == 0 or my_ground_units - 2 > enemy_ground_units:
+        main_base_region = self.map_data.where(self.start_location)
+        natural_region = self.map_data.where(self.expansion_order[1]) if not self.map_has_inner_expansion else self.map_data.where(self.expansion_order[2])
+        enemy_units_in_base = False
+        own_units_outside_base = False
+        for enemy in self.enemy_units.not_flying:
+            if main_base_region.is_inside_point(enemy.position):
+                enemy_units_in_base = True
+
+        self.structures(UnitTypeId.BARRACKS)
+
+        blocking_raxes = self.block_rax.select_units(self.structures)
+        blocking_rax = blocking_raxes.first if blocking_raxes.exists else None
+
+        if blocking_rax:
+            block_rax_to_ramp_bottom = self.main_base_ramp.bottom_center - blocking_rax.position
+
+        for unit in army_units:
+            if blocking_rax:
+                blocking_rax_to_unit = unit.position - blocking_rax.position
+                dot_product = block_rax_to_ramp_bottom.x * blocking_rax_to_unit.x + block_rax_to_ramp_bottom.y * blocking_rax_to_unit.y
+            if (natural_region.is_inside_point(unit.position) or (blocking_rax
+                                                                  and main_base_region.is_inside_point(unit.position)
+                                                                  and dot_product > 0)):
+                own_units_outside_base = True
+
+        if (enemy_ground_units == 0 or my_ground_units - 2 > enemy_ground_units
+                or (enemy_units_in_base and own_units_outside_base)):
             for depot in depots.filter(lambda x: x.type_id == UnitTypeId.SUPPLYDEPOT):
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
         else:

@@ -107,7 +107,7 @@ class VersionManager():
             enum_key._value_ = value
             enum._member_map_[enum_key.name] = value
             enum._value2member_map_[value] = enum_key
-            self.print(f"Setting {enum_key.name} to {enum_key.value}")
+            print(f"Setting {enum_key.name} to {enum_key.value}")
 
     def configure_upgrades(self):
         if self.base_version < GameVersion.V_4_11_0:

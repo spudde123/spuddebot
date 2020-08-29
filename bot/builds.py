@@ -17,8 +17,9 @@ class ArmyPriority(Enum):
 class Tech:
     def __init__(self, bot: sc2.BotAI):
         self._unit_counts = dict()
-        self._pre_addon_units = dict()
         self._unit_types = dict()
+        self._units_trained = dict()
+
         self._time = 0
         self.bot = bot
 
@@ -179,18 +180,18 @@ class Tech:
 
         return current_amount < self._get_building_limit(army_type, building_type)
 
-    def _count_trained_pre_addon_units(self, unit: UnitTypeId):
-        if unit not in self._pre_addon_units:
+    def _count_trained_units(self, unit: UnitTypeId):
+        if unit not in self._units_trained:
             return self.bot.already_pending(unit)
         else:
-            return self._pre_addon_units[unit] + self.bot.already_pending(unit)
+            return self._units_trained[unit] + self.bot.already_pending(unit)
 
     def should_build_addon(self, army_type: ArmyPriority, building_type: UnitTypeId, addon_type: UnitTypeId):
         current_amount = self._count_buildings(addon_type)
 
         if ('pre_addon_units' in self.builds[army_type]
                 and building_type in self.builds[army_type]['pre_addon_units']
-                and (self._count_trained_pre_addon_units(self.builds[army_type]['pre_addon_units'][building_type][0])
+                and (self._count_trained_units(self.builds[army_type]['pre_addon_units'][building_type][0])
                      < self.builds[army_type]['pre_addon_units'][building_type][1])):
             return False
 
@@ -237,10 +238,10 @@ class Tech:
         if unit_type not in self._unit_counts:
             self._unit_counts[unit_type] = 0
 
-        if unit_type not in self._pre_addon_units:
-            self._pre_addon_units[unit_type] = 0
+        if unit_type not in self._units_trained:
+            self._units_trained[unit_type] = 0
 
-        self._pre_addon_units[unit_type] += 1
+        self._units_trained[unit_type] += 1
         self._unit_counts[unit_type] += 1
         self._unit_types[tag] = unit_type
 
@@ -248,8 +249,6 @@ class Tech:
         if tag in self._unit_types:
             unit_type = self._unit_types[tag]
 
-            # if the unit is meant to be made only a certain
-            # amount early game we don't count the deaths
             if unit_type in self.builds[army_type]["units"]:
                 self._unit_counts[unit_type] -= 1
                 del self._unit_types[tag]

@@ -13,6 +13,7 @@ from typing import List, Optional, Union
 from .builds import ArmyPriority, ResourcePriority, Tech
 from .unit_control import ArmyMode, ArmyGroup
 from .data import TerranData
+from .game_version import VersionManager
 from MapAnalyzer import MapData
 
 RETREAT_TIME_THRESHOLD = 60
@@ -21,6 +22,9 @@ RETREAT_TIME_THRESHOLD = 60
 class MyBot(sc2.BotAI):
     def __init__(self):
         super().__init__()
+
+        self.version_manager = VersionManager()
+
         self.prev_game_loop = -math.inf
         self.prev_game_seconds = 0
         self.iterations_used = 0
@@ -683,6 +687,7 @@ class MyBot(sc2.BotAI):
                 'health_percentage': building.health_percentage
             }
 
+    # FIX: doesn't work currently
     def lift_buildings_under_attack(self):
         liftable_ths = {UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND}
         for th in self.townhalls.ready.filter(lambda x: x.type_id in liftable_ths):
@@ -754,7 +759,6 @@ class MyBot(sc2.BotAI):
             max_energy_oc = ocs.sorted(lambda x: x.energy).first
             max_energy_oc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, best_mf)
 
-    # need to improve the scan timings still
     def use_scan(self, target: Point2) -> bool:
         ocs = self.townhalls(UnitTypeId.ORBITALCOMMAND).ready.filter(lambda x: x.energy >= 50)
         # temporary measure to make sure we don't pointlessly scan twice to the same location
@@ -764,10 +768,6 @@ class MyBot(sc2.BotAI):
         self.last_scan_time = self.time
         ocs.first(AbilityId.SCANNERSWEEP_SCAN, target)
         return True
-
-    # still need to figure out targeting properly. what target should
-    # be chosen and what enemy units are relevant to be considered
-    # some of the attack selection is still nonsensical
 
     async def attack_towards_position(self, units: Units, target: Union[Point2, Unit],
                                       close_enemy_units: Optional[Units] = None,
@@ -931,9 +931,6 @@ class MyBot(sc2.BotAI):
             else:
                 unit.attack(target)
 
-        # find relevant units ravens can use interference matrix on
-        # if the units are spellcasters only target those with enough energy
-        # for dangerous spells
         interferable_units = None
         armor_missile_targets = None
         if close_enemy_units:
@@ -1921,6 +1918,9 @@ class MyBot(sc2.BotAI):
         for exp in self.enemy_expansion_order:
             self.enemy_expansion_checks[exp] = 0
         self.expansion_order = await self.calculate_expansion_order(self.start_location, False)
+
+    async def on_start(self):
+        await self.version_manager.handle_game_version(self.client)
 
     async def on_step(self, iteration):
         if 4 + self.prev_game_loop > self.state.game_loop or self.time_budget_available < 0.4:

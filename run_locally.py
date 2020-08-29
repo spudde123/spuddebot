@@ -7,7 +7,7 @@ sys.path.insert(1, "SC2MapAnalysis")
 from sc2 import run_game, maps, Race, Difficulty, AIBuild
 from sc2.player import Bot, Computer, Human
 
-from bot import MyBot
+from bot import Spudde
 import time
 import random
 
@@ -27,9 +27,10 @@ def main():
         "ZenLE"
     ]
     map_name = random.choice(map_list)
+    #map_name = "GoldenWallLE"
     run_game(maps.get(map_name), [
         #Human(Race.Terran, fullscreen=True),
-        Bot(race, MyBot()),
+        Bot(race, Spudde()),
         Computer(Race.Zerg, Difficulty.VeryHard)
     ], realtime=False, save_replay_as="./replays/{bot1}_vs_{bot2}_{map}_{time}.SC2Replay".format(
         bot1="spudde", bot2="computer", map=map_name.replace(" ", ""), time=time.strftime("%H_%M_%j")

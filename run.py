@@ -6,7 +6,7 @@ import json
 sys.path.insert(1, "python-sc2")
 sys.path.insert(1, "SC2MapAnalysis")
 
-from bot import MyBot
+from bot import Spudde
 
 import argparse
 import asyncio
@@ -111,7 +111,7 @@ def load_bot(args):
         info = json.load(f)
 
     race = Race[info["race"]]
-    spudde_bot = MyBot()
+    spudde_bot = Spudde()
     # Add opponent_id to the bot class (accessed through self.opponent_id)
     spudde_bot.opponent_id = args.OpponentId
 

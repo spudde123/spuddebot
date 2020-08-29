@@ -4,7 +4,7 @@ from sc2.helpers import ControlGroup
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
-from sc2.data import ActionResult, CloakState, Race
+from sc2.data import ActionResult, Race
 from sc2.cache import property_cache_forever, property_cache_once_per_frame
 from sc2.game_info import Ramp
 import time
@@ -19,7 +19,7 @@ from MapAnalyzer import MapData
 RETREAT_TIME_THRESHOLD = 60
 
 
-class MyBot(sc2.BotAI):
+class Spudde(sc2.BotAI):
     def __init__(self):
         super().__init__()
 

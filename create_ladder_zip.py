@@ -10,7 +10,7 @@ import shutil
 import zipfile
 from typing import Optional
 
-from bot import MyBot as bot
+from bot import Spudde as bot
 
 # Ignore the annoying resource warning from importing sc2 when an SC2 instance isn't running.
 import warnings

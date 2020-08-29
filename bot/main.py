@@ -1552,56 +1552,34 @@ class MyBot(sc2.BotAI):
                 self.main_army.remove_units(scouting_units)
                 self.scouting_units.add_units(scouting_units)
 
-    def count_buildings(self, unit_type: UnitTypeId) -> int:
-        ready = self.structures(unit_type).ready.amount
-        if unit_type == UnitTypeId.BARRACKS:
-            ready += self.structures(UnitTypeId.BARRACKSFLYING).ready.amount
-        elif unit_type == UnitTypeId.FACTORY:
-            ready += self.structures(UnitTypeId.FACTORYFLYING).ready.amount
-        elif unit_type == UnitTypeId.STARPORT:
-            ready += self.structures(UnitTypeId.STARPORTFLYING).ready.amount
-        elif unit_type == UnitTypeId.ORBITALCOMMAND:
-            ready += self.structures(UnitTypeId.ORBITALCOMMANDFLYING).ready.amount
-        elif unit_type == UnitTypeId.COMMANDCENTER:
-            ready += self.structures(UnitTypeId.COMMANDCENTERFLYING).ready.amount
-
-        return ready + self.already_pending(unit_type)
-
     async def control_addon_production(self):
-        if self.tech.builds[self.army_type]['add_ons'][UnitTypeId.BARRACKS] and self.tech.should_build_addon(self.army_type, UnitTypeId.BARRACKS):
-            if (self.structures(UnitTypeId.BARRACKS).ready.idle.filter(lambda x: x.add_on_tag == 0).exists
-                    and self.tech.should_build_techlab(self.army_type, UnitTypeId.BARRACKS,
-                                                       self.structures(UnitTypeId.BARRACKS).ready.amount,
-                                                       self.count_buildings(UnitTypeId.BARRACKSTECHLAB))
+        if self.structures(UnitTypeId.BARRACKS).ready.idle.filter(lambda x: x.add_on_tag == 0).exists:
+            if (self.tech.should_build_addon(self.army_type, UnitTypeId.BARRACKS, UnitTypeId.BARRACKSTECHLAB)
                     and self.can_afford(UnitTypeId.BARRACKSTECHLAB)):
                 rax = self.structures(UnitTypeId.BARRACKS).ready.idle.filter(lambda x: x.add_on_tag == 0).random
                 await self.build_addon(rax, UnitTypeId.BARRACKSTECHLAB)
-            elif (self.structures(UnitTypeId.BARRACKS).ready.idle.filter(lambda x: x.add_on_tag == 0).exists
-                  and self.can_afford(UnitTypeId.BARRACKSREACTOR) and self.structures(UnitTypeId.STARPORT).exists):
+            elif (self.tech.should_build_addon(self.army_type, UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR)
+                  and self.can_afford(UnitTypeId.BARRACKSREACTOR)):
                 rax = self.structures(UnitTypeId.BARRACKS).ready.idle.filter(lambda x: x.add_on_tag == 0).random
                 await self.build_addon(rax, UnitTypeId.BARRACKSREACTOR)
 
-        if self.tech.builds[self.army_type]['add_ons'][UnitTypeId.FACTORY] and self.tech.should_build_addon(self.army_type, UnitTypeId.FACTORY):
-            if (self.structures(UnitTypeId.FACTORY).ready.idle.filter(lambda x: x.add_on_tag == 0).exists
-                    and self.tech.should_build_techlab(self.army_type, UnitTypeId.FACTORY,
-                                                       self.structures(UnitTypeId.FACTORY).ready.amount,
-                                                       self.count_buildings(UnitTypeId.FACTORYTECHLAB))
-                    and self.can_afford(UnitTypeId.FACTORYTECHLAB)
-                    and (self.structures(UnitTypeId.STARPORT).exists or self.enemy_race == Race.Protoss)):
+        if self.structures(UnitTypeId.FACTORY).ready.idle.filter(lambda x: x.add_on_tag == 0).exists:
+            if (self.tech.should_build_addon(self.army_type, UnitTypeId.FACTORY, UnitTypeId.FACTORYTECHLAB)
+                    and self.can_afford(UnitTypeId.FACTORYTECHLAB)):
                 fac = self.structures(UnitTypeId.FACTORY).ready.idle.filter(lambda x: x.add_on_tag == 0).random
                 await self.build_addon(fac, UnitTypeId.FACTORYTECHLAB)
+            elif (self.tech.should_build_addon(self.army_type, UnitTypeId.FACTORY, UnitTypeId.FACTORYREACTOR)
+                  and self.can_afford(UnitTypeId.FACTORYREACTOR)):
+                fac = self.structures(UnitTypeId.FACTORY).ready.idle.filter(lambda x: x.add_on_tag == 0).random
+                await self.build_addon(fac, UnitTypeId.FACTORYREACTOR)
 
-
-        if self.tech.builds[self.army_type]['add_ons'][UnitTypeId.STARPORT] and self.tech.should_build_addon(self.army_type, UnitTypeId.STARPORT):
-            if (self.structures(UnitTypeId.STARPORT).ready.idle.filter(lambda x: x.add_on_tag == 0).exists
-                    and self.tech.should_build_techlab(self.army_type, UnitTypeId.STARPORT,
-                                                       self.structures(UnitTypeId.STARPORT).ready.amount,
-                                                       self.count_buildings(UnitTypeId.STARPORTTECHLAB))
+        if self.structures(UnitTypeId.STARPORT).ready.idle.filter(lambda x: x.add_on_tag == 0).exists:
+            if (self.tech.should_build_addon(self.army_type, UnitTypeId.STARPORT, UnitTypeId.STARPORTTECHLAB)
                     and self.can_afford(UnitTypeId.STARPORTTECHLAB)):
                 sp = self.structures(UnitTypeId.STARPORT).ready.idle.filter(lambda x: x.add_on_tag == 0).random
                 await self.build_addon(sp, UnitTypeId.STARPORTTECHLAB)
-            elif (self.structures(UnitTypeId.STARPORT).ready.idle.filter(lambda x: x.add_on_tag == 0).exists
-                    and self.can_afford(UnitTypeId.STARPORTREACTOR)):
+            elif (self.tech.should_build_addon(self.army_type, UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR)
+                  and self.can_afford(UnitTypeId.STARPORTREACTOR)):
                 sp = self.structures(UnitTypeId.STARPORT).ready.idle.filter(lambda x: x.add_on_tag == 0).random
                 await self.build_addon(sp, UnitTypeId.STARPORTREACTOR)
 
@@ -1718,7 +1696,7 @@ class MyBot(sc2.BotAI):
         if (self.iterations_used % 10 == 0 and self.time >= self.turret_time
                 and self.building_requirements_satisfied(UnitTypeId.MISSILETURRET)
                 and self.can_afford(UnitTypeId.MISSILETURRET)
-                and self.count_buildings(UnitTypeId.MISSILETURRET) < self.townhalls.amount):
+                and self.structures(UnitTypeId.MISSILETURRET).ready.amount + self.already_pending(UnitTypeId.MISSILETURRET) < self.townhalls.amount):
             for th in self.townhalls:
                 if self.structures(UnitTypeId.MISSILETURRET).empty or self.structures(UnitTypeId.MISSILETURRET).closer_than(10, th).empty:
                     await self.build_near_base(UnitTypeId.MISSILETURRET, th.position)
@@ -1726,26 +1704,23 @@ class MyBot(sc2.BotAI):
         if (self.building_requirements_satisfied(UnitTypeId.BUNKER)
                 and self.can_afford(UnitTypeId.BUNKER)
                 and self.townhalls.amount >= 2
-                and self.count_buildings(UnitTypeId.BUNKER) < 1):
+                and self.structures(UnitTypeId.BUNKER).ready.amount + self.already_pending(UnitTypeId.BUNKER) < 1):
             await self.build_bunker()
 
         await self.control_upgrade_production()
 
         if (self.building_requirements_satisfied(UnitTypeId.STARPORT)
-                and self.tech.should_build(self.army_type, UnitTypeId.STARPORT,
-                                           self.count_buildings(UnitTypeId.STARPORT), self.townhalls.amount)
+                and self.tech.should_build(self.army_type, UnitTypeId.STARPORT)
                 and self.can_afford(UnitTypeId.STARPORT)):
             await self.build_near_base(UnitTypeId.STARPORT)
 
         if (self.building_requirements_satisfied(UnitTypeId.FACTORY)
-                and self.tech.should_build(self.army_type, UnitTypeId.FACTORY,
-                                           self.count_buildings(UnitTypeId.FACTORY), self.townhalls.amount)
+                and self.tech.should_build(self.army_type, UnitTypeId.FACTORY)
                 and self.can_afford(UnitTypeId.FACTORY)):
             await self.build_near_base(UnitTypeId.FACTORY)
 
         if (self.building_requirements_satisfied(UnitTypeId.BARRACKS)
-                and self.tech.should_build(self.army_type, UnitTypeId.BARRACKS,
-                                           self.count_buildings(UnitTypeId.BARRACKS), self.townhalls.amount)
+                and self.tech.should_build(self.army_type, UnitTypeId.BARRACKS)
                 and self.can_afford(UnitTypeId.BARRACKS)):
             ws = self.workers.gathering
             if ws and self.townhalls.exists:
@@ -1759,9 +1734,7 @@ class MyBot(sc2.BotAI):
                     await self.build_near_base(UnitTypeId.BARRACKS)
 
         if (self.building_requirements_satisfied(UnitTypeId.REFINERY)
-                and self.tech.should_build_refinery(self.army_type,
-                                                    self.townhalls.ready.amount,
-                                                    self.count_buildings(UnitTypeId.REFINERY))
+                and self.tech.should_build_refinery(self.army_type)
                 and self.can_afford(UnitTypeId.REFINERY)
                 and self.townhalls.exists):
             vgs = (self.vespene_geyser
@@ -1774,15 +1747,12 @@ class MyBot(sc2.BotAI):
                     w.build(UnitTypeId.REFINERY, vg)
 
         if (self.building_requirements_satisfied(UnitTypeId.ENGINEERINGBAY)
-                and self.tech.should_build(self.army_type, UnitTypeId.ENGINEERINGBAY,
-                                           self.count_buildings(UnitTypeId.ENGINEERINGBAY), self.townhalls.amount)
+                and self.tech.should_build(self.army_type, UnitTypeId.ENGINEERINGBAY)
                 and self.can_afford(UnitTypeId.ENGINEERINGBAY)):
             await self.build_near_base(UnitTypeId.ENGINEERINGBAY)
 
         if (self.building_requirements_satisfied(UnitTypeId.ARMORY)
-                and self.tech.should_build(self.army_type, UnitTypeId.ARMORY,
-                                           self.count_buildings(UnitTypeId.ARMORY),
-                                           self.townhalls.amount)
+                and self.tech.should_build(self.army_type, UnitTypeId.ARMORY)
                 and self.can_afford(UnitTypeId.ARMORY)):
             await self.build_near_base(UnitTypeId.ARMORY)
 
@@ -1945,7 +1915,7 @@ class MyBot(sc2.BotAI):
         # need to take into account what should be done
         # if all bases have already been taken
 
-        if current_base_count < 1 and self.tech.should_expand(self.army_type, self.townhalls.amount):
+        if current_base_count < 1 and self.tech.should_expand(self.army_type):
             self.resource_priority = ResourcePriority.EXPANSION
         else:
             self.resource_priority = ResourcePriority.STRUCTURES

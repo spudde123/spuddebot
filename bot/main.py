@@ -1452,7 +1452,12 @@ class MyBot(sc2.BotAI):
         elif self.should_be_aggressive and 'poke_timing' in self.tech.builds[self.army_type]:
             for condition in self.tech.builds[self.army_type]['poke_timing']:
                 if isinstance(condition, UnitTypeId):
-                    if self.all_own_units(condition).amount < self.tech.builds[self.army_type]['poke_timing'][condition]:
+                    extra = 0
+                    if condition == UnitTypeId.MARINE and self.structures(UnitTypeId.BUNKER).ready.exists:
+                        for bunker in self.structures(UnitTypeId.BUNKER).ready:
+                            extra += bunker.cargo_used
+
+                    if extra + self.all_own_units(condition).amount < self.tech.builds[self.army_type]['poke_timing'][condition]:
                         return False
                 elif isinstance(condition, UpgradeId):
                     if self.already_pending(condition) < self.tech.builds[self.army_type]['poke_timing'][condition]:
